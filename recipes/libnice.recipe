@@ -3,13 +3,16 @@
 class Recipe(recipe.Recipe):
     name = 'libnice'
     version = '0.1.13'
+    # stype = SourceType.GIT
+    # remotes = { 'origin': 'https://github.com/libnice/libnice.git' }
+    # commit = 'origin/master'
     stype = SourceType.TARBALL
     url = 'http://nice.freedesktop.org/releases/%(name)s-%(version)s.tar.gz'
     licenses = [License.LGPLv2_1Plus, License.MPLv1_1]
     configure_options = ' --enable-static --enable-shared --with-gstreamer \
             --without-gstreamer-0.10 --enable-compile-warnings=maximum \
             --disable-gtk-doc'
-    deps = ['glib', 'gtk-doc-lite', 'gstreamer-1.0']
+    deps = ['glib', 'gtk-doc-lite', 'gstreamer-1.0','gettext']
     autoreconf = True
     patches = [
         "libnice/0001-agent-Remove-unnecessary-NULL-check.patch",
@@ -18,7 +21,10 @@ class Recipe(recipe.Recipe):
         "libnice/0004-Removing-no-op-assignment.patch",
         "libnice/0001-nicesrc-spin-the-agent-mainloop-in-a-separate-thread.patch",
         "libnice/0001-TURN-allow-REALM-to-be-empty.patch",
-        "libnice/0002-TURN-handle-437-Allocation-Mismatch-responses.patch"
+        "libnice/0002-TURN-handle-437-Allocation-Mismatch-responses.patch",
+   #     "libnice/socket_dummy_h.patch",
+   #     "libnice/socket_dummy_c.patch",
+        "libnice/socket_correct_close.patch"
     ]
 
     files_bins = ['stunbdc', 'stund']

@@ -1,20 +1,12 @@
-# OpenWebRTC fork of cerbero
+# OpenWebRTC fork of cerbero (libnice 0.1.13 package)
 
-## How do I use this?
+We made this fork and added a package definition in order to be able to compile *libnice 0.1.13 and all their dependencies for iOS*. It includes one patch to solve a segfault in it.
 
+In order to build it, you should follow the instructions at Ericsson fork:
 [Using this cerbero fork to build OpenWebRTC](https://github.com/EricssonResearch/openwebrtc/wiki/Building-OpenWebRTC)
 
-## What is cerbero?
+After the whole openwebrtc package is compiled you can run the following command to get a tar.gz with libnice and all the dependencies in it:
+```
+   ./cerbero-uninstalled -c config/cross-ios-universal.cbc package -f libnice -t
+```
 
-[cerbero](http://cgit.freedesktop.org/gstreamer/cerbero/) is a build system
-written by GStreamer developers to build all GStreamer dependencies, GStreamer
-itself and package it up into nice platform-specific SDK-like binary files.
-
-## Why a fork?
-
-OpenWebRTC needs some extra dependencies that are not desirable to have in
-upstream cerbero. OpenWebRTC also needs some bits and pieces built in specific
-ways to meet our needs.
-
-We like collaboration and hope the use of cerbero to build OpenWebRTC will be
-mutually beneficial. *All real cerbero changes are being submitted upstream!*

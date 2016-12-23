@@ -1,0 +1,15 @@
+# vi:si:et:sw=4:sts=4:ts=4:syntax=python
+# -*- Mode: Python -*-
+
+
+class Package(package.Package):
+
+    name = 'libnice'
+    shortdesc = 'libnice'
+    longdesc = 'libnice'
+    uuid = 'd9626750-e8b7-4e40-944d-98b67ed0c6bf'
+    #deps = ['base-system-1.0']
+    #deps = ['glib-networking']
+    deps = ['base-system-1.0',]
+    files = ['libnice:libs', 'libnice:plugins_net','glib:libs:lang:bins:schemas', 'openssl:libs','libffi:libs','gettext:libs:lang']
+    files_devel = ['libnice-static:plugins_net_devel']

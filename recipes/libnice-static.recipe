@@ -19,7 +19,10 @@ class Recipe(custom.GStreamerStatic):
         "libnice/0004-Removing-no-op-assignment.patch",
         "libnice/0001-nicesrc-spin-the-agent-mainloop-in-a-separate-thread.patch",
         "libnice/0001-TURN-allow-REALM-to-be-empty.patch",
-        "libnice/0002-TURN-handle-437-Allocation-Mismatch-responses.patch"
+        "libnice/0002-TURN-handle-437-Allocation-Mismatch-responses.patch",
+        "libnice/socket_dummy_h.patch",
+        "libnice/socket_dummy_c.patch",
+        "libnice/socket_correct_close.patch"
     ]
 
 
