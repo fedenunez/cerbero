@@ -2,7 +2,7 @@
 
 class Recipe(recipe.Recipe):
     name = 'libnice'
-    version = '0.1.13'
+    version = '0.1.14'
     # stype = SourceType.GIT
     # remotes = { 'origin': 'https://github.com/libnice/libnice.git' }
     # commit = 'origin/master'
@@ -22,6 +22,9 @@ class Recipe(recipe.Recipe):
         "libnice/0001-nicesrc-spin-the-agent-mainloop-in-a-separate-thread.patch",
         "libnice/0001-TURN-allow-REALM-to-be-empty.patch",
         "libnice/0002-TURN-handle-437-Allocation-Mismatch-responses.patch",
+	"T104-candidate-d1715-add_equality_check_function.patch",
+	"T104-candidate-d1716-drop_packets_not_from_validated_address.patch",
+	"T104-candidate-d1717-add_test_to_verify_that_only_packets_from_validated_address_pass.patch",
    #     "libnice/socket_dummy_h.patch",
    #     "libnice/socket_dummy_c.patch",
         "libnice/socket_correct_close.patch"

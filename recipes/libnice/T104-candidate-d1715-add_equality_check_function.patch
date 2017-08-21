@@ -1,0 +1,83 @@
+diff --git a/agent/candidate.h b/agent/candidate.h
+--- a/agent/candidate.h
++++ b/agent/candidate.h
+@@ -230,7 +230,23 @@
+ NiceCandidate *
+ nice_candidate_copy (const NiceCandidate *candidate);
+ 
+-GType nice_candidate_get_type (void);
++/**
++ * nice_candidate_equal_target:
++ * @candidate1: A candidate
++ * @candidate2: A candidate
++ *
++ * Verifies that the candidates point to the same place, meaning they have
++ * the same transport and the same address. It ignores all other aspects.
++ *
++ * Returns: %TRUE if the candidates point to the same place
++ *
++ * Since: 0.1.15
++ */
++gboolean
++nice_candidate_equal_target (const NiceCandidate *candidate1,
++    const NiceCandidate *candidate2);
++
++  GType nice_candidate_get_type (void);
+ 
+ /**
+  * NICE_TYPE_CANDIDATE:
+diff --git a/agent/candidate.c b/agent/candidate.c
+--- a/agent/candidate.c
++++ b/agent/candidate.c
+@@ -360,3 +360,14 @@
+ 
+   return copy;
+ }
++
++NICEAPI_EXPORT gboolean
++nice_candidate_equal_target (const NiceCandidate *candidate1,
++    const NiceCandidate *candidate2)
++{
++  g_return_val_if_fail (candidate1 != NULL, FALSE);
++  g_return_val_if_fail (candidate2 != NULL, FALSE);
++
++  return (candidate1->transport == candidate2->transport &&
++      nice_address_equal (&candidate1->addr, &candidate2->addr));
++}
+diff --git a/docs/reference/libnice/libnice-docs.xml b/docs/reference/libnice/libnice-docs.xml
+--- a/docs/reference/libnice/libnice-docs.xml
++++ b/docs/reference/libnice/libnice-docs.xml
+@@ -105,6 +105,10 @@
+       <title>Index of new symbols in 0.1.14</title>
+       <xi:include href="xml/api-index-0.1.14.xml"><xi:fallback/></xi:include>
+     </index>
++    <index role="0.1.15">
++      <title>Index of new symbols in 0.1.15</title>
++      <xi:include href="xml/api-index-0.1.15.xml"><xi:fallback/></xi:include>
++    </index>
+     <xi:include href="xml/annotation-glossary.xml"><xi:fallback /></xi:include>
+   </part>
+ </book>
+diff --git a/docs/reference/libnice/libnice-sections.txt b/docs/reference/libnice/libnice-sections.txt
+--- a/docs/reference/libnice/libnice-sections.txt
++++ b/docs/reference/libnice/libnice-sections.txt
+@@ -76,6 +76,7 @@
+ nice_candidate_new
+ nice_candidate_free
+ nice_candidate_copy
++nice_candidate_equal_target
+ <SUBSECTION Standard>
+ NICE_TYPE_CANDIDATE
+ nice_candidate_get_type
+diff --git a/nice/libnice.sym b/nice/libnice.sym
+--- a/nice/libnice.sym
++++ b/nice/libnice.sym
+@@ -58,6 +58,7 @@
+ nice_agent_set_stream_name
+ nice_agent_set_stream_tos
+ nice_candidate_copy
++nice_candidate_equal_target
+ nice_candidate_free
+ nice_candidate_new
+ nice_component_state_to_string
+
