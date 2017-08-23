@@ -1,7 +1,25 @@
+From 46900bd92d068a7fc93270239103a9477fc9e1f5 Mon Sep 17 00:00:00 2001
+From: Marcelo <restuccia@ikatu.com>
+Date: Mon, 21 Aug 2017 14:20:32 -0300
+Subject: [PATCH 4/4] T104 candidate d1716 drop packets not from validated
+ address
+
+---
+ agent/agent-priv.h    |   2 +
+ agent/agent.c         |  20 +++++++++-
+ agent/component.c     |  90 +++++++++++++++++++++++++++++++++++++++++
+ agent/component.h     |  10 +++++
+ agent/conncheck.c     |   8 +++-
+ tests/Makefile.am     |   1 -
+ tests/test-mainloop.c | 108 --------------------------------------------------
+ 7 files changed, 127 insertions(+), 112 deletions(-)
+ delete mode 100644 tests/test-mainloop.c
+
 diff --git a/agent/agent-priv.h b/agent/agent-priv.h
+index 4d8c9b8..ada3630 100644
 --- a/agent/agent-priv.h
 +++ b/agent/agent-priv.h
-@@ -114,6 +114,8 @@
+@@ -114,6 +114,8 @@ nice_input_message_iter_compare (const NiceInputMessageIter *a,
   * MTU and estimated typical sizes of ICE STUN packet */
  #define MAX_STUN_DATAGRAM_PAYLOAD    1300
  
@@ -11,9 +29,10 @@ diff --git a/agent/agent-priv.h b/agent/agent-priv.h
  {
    GObject parent;                 /* gobject pointer */
 diff --git a/agent/agent.c b/agent/agent.c
+index 555fd16..b2a9f9c 100644
 --- a/agent/agent.c
 +++ b/agent/agent.c
-@@ -3682,8 +3682,6 @@
+@@ -3679,8 +3679,6 @@ agent_recv_message_unlocked (
    if (retval == RECV_OOB)
      goto done;
  
@@ -22,7 +41,7 @@ diff --git a/agent/agent.c b/agent/agent.c
    /* If the message’s stated length is equal to its actual length, it’s probably
     * a STUN message; otherwise it’s probably data. */
    if (stun_message_validate_buffer_length_fast (
-@@ -3715,6 +3713,7 @@
+@@ -3712,6 +3710,7 @@ agent_recv_message_unlocked (
          nice_debug ("%s: Valid STUN packet received.", G_STRFUNC);
          retval = RECV_OOB;
          g_free (big_buf);
@@ -30,7 +49,7 @@ diff --git a/agent/agent.c b/agent/agent.c
          goto done;
        }
      }
-@@ -3725,6 +3724,23 @@
+@@ -3722,6 +3721,23 @@ agent_recv_message_unlocked (
      g_free (big_buf);
    }
  
@@ -54,43 +73,11 @@ diff --git a/agent/agent.c b/agent/agent.c
    /* Unhandled STUN; try handling TCP data, then pass to the client. */
    if (message->length > 0  && agent->reliable) {
      if (!nice_socket_is_reliable (nicesock) &&
-diff --git a/agent/component.h b/agent/component.h
---- a/agent/component.h
-+++ b/agent/component.h
-@@ -159,12 +159,14 @@
-   NiceComponentState state;
-   GSList *local_candidates;    /* list of NiceCandidate objs */
-   GSList *remote_candidates;   /* list of NiceCandidate objs */
-+  GList *valid_candidates;     /* list of owned remote NiceCandidates that are part of valid pairs */
-   GSList *socket_sources;      /* list of SocketSource objs; must only grow monotonically */
-   guint socket_sources_age;    /* incremented when socket_sources changes */
-   GSList *incoming_checks;     /* list of IncomingCheck objs */
-   GList *turn_servers;             /* List of TurnServer objs */
-   CandidatePair selected_pair; /* independent from checklists, 
- 				    see ICE 11.1. "Sending Media" (ID-19) */
-+  gboolean fallback_mode;      /* in this case, accepts packets from all, ignore candidate validation */
-   NiceCandidate *restart_candidate; /* for storing active remote candidate during a restart */
-   NiceCandidate *turn_candidate; /* for storing active turn candidate if turn servers have been cleared */
-   /* I/O handling. The main context must always be non-NULL, and is used for all
-@@ -301,6 +303,14 @@
- void
- turn_server_unref (TurnServer *turn);
- 
-+void
-+nice_component_add_valid_candidate (NiceComponent *component,
-+    const NiceCandidate *candidate);
-+
-+gboolean
-+nice_component_verify_remote_candidate (NiceComponent *component,
-+    const NiceAddress *address, NiceSocket *nicesock);
-+
- 
- G_END_DECLS
- 
 diff --git a/agent/component.c b/agent/component.c
+index 32f7463..a0332d3 100644
 --- a/agent/component.c
 +++ b/agent/component.c
-@@ -435,6 +435,8 @@
+@@ -435,6 +435,8 @@ nice_component_update_selected_pair (NiceComponent *component, const CandidatePa
    component->selected_pair.remote = pair->remote;
    component->selected_pair.priority = pair->priority;
    component->selected_pair.prflx_priority = pair->prflx_priority;
@@ -99,7 +86,7 @@ diff --git a/agent/component.c b/agent/component.c
  }
  
  /*
-@@ -514,6 +516,11 @@
+@@ -514,6 +516,11 @@ nice_component_set_selected_remote_candidate (NiceComponent *component,
    component->selected_pair.remote = remote;
    component->selected_pair.priority = priority;
  
@@ -111,7 +98,7 @@ diff --git a/agent/component.c b/agent/component.c
    return local;
  }
  
-@@ -1107,6 +1114,9 @@
+@@ -1107,6 +1114,9 @@ nice_component_finalize (GObject *obj)
    g_warn_if_fail (cmp->remote_candidates == NULL);
    g_warn_if_fail (cmp->incoming_checks == NULL);
  
@@ -121,7 +108,7 @@ diff --git a/agent/component.c b/agent/component.c
    g_clear_object (&cmp->tcp);
    g_clear_object (&cmp->stop_cancellable);
    g_clear_object (&cmp->iostream);
-@@ -1421,3 +1431,83 @@
+@@ -1421,3 +1431,83 @@ turn_server_unref (TurnServer *turn)
      g_slice_free (TurnServer, turn);
    }
  }
@@ -205,10 +192,45 @@ diff --git a/agent/component.c b/agent/component.c
 +
 +  return FALSE;
 +}
+diff --git a/agent/component.h b/agent/component.h
+index 6712794..a8a1222 100644
+--- a/agent/component.h
++++ b/agent/component.h
+@@ -159,12 +159,14 @@ struct _NiceComponent {
+   NiceComponentState state;
+   GSList *local_candidates;    /* list of NiceCandidate objs */
+   GSList *remote_candidates;   /* list of NiceCandidate objs */
++  GList *valid_candidates;     /* list of owned remote NiceCandidates that are part of valid pairs */
+   GSList *socket_sources;      /* list of SocketSource objs; must only grow monotonically */
+   guint socket_sources_age;    /* incremented when socket_sources changes */
+   GSList *incoming_checks;     /* list of IncomingCheck objs */
+   GList *turn_servers;             /* List of TurnServer objs */
+   CandidatePair selected_pair; /* independent from checklists, 
+ 				    see ICE 11.1. "Sending Media" (ID-19) */
++  gboolean fallback_mode;      /* in this case, accepts packets from all, ignore candidate validation */
+   NiceCandidate *restart_candidate; /* for storing active remote candidate during a restart */
+   NiceCandidate *turn_candidate; /* for storing active turn candidate if turn servers have been cleared */
+   /* I/O handling. The main context must always be non-NULL, and is used for all
+@@ -301,6 +303,14 @@ turn_server_ref (TurnServer *turn);
+ void
+ turn_server_unref (TurnServer *turn);
+ 
++void
++nice_component_add_valid_candidate (NiceComponent *component,
++    const NiceCandidate *candidate);
++
++gboolean
++nice_component_verify_remote_candidate (NiceComponent *component,
++    const NiceAddress *address, NiceSocket *nicesock);
++
+ 
+ G_END_DECLS
+ 
 diff --git a/agent/conncheck.c b/agent/conncheck.c
+index 1311c85..10e4e70 100644
 --- a/agent/conncheck.c
 +++ b/agent/conncheck.c
-@@ -2627,6 +2627,7 @@
+@@ -2624,6 +2624,7 @@ static CandidateCheckPair *priv_process_response_check_for_reflexive(NiceAgent *
      p->state = NICE_CHECK_SUCCEEDED;
      nice_debug ("Agent %p : conncheck %p SUCCEEDED.", agent, p);
      priv_conn_check_unfreeze_related (agent, stream, p);
@@ -216,7 +238,7 @@ diff --git a/agent/conncheck.c b/agent/conncheck.c
    }
    else {
      if (!local_cand) {
-@@ -2652,8 +2653,10 @@
+@@ -2649,8 +2650,10 @@ static CandidateCheckPair *priv_process_response_check_for_reflexive(NiceAgent *
  
    /* note: this is same as "adding to VALID LIST" in the spec
       text */
@@ -228,7 +250,7 @@ diff --git a/agent/conncheck.c b/agent/conncheck.c
  
    return new_pair;
  }
-@@ -2739,6 +2742,7 @@
+@@ -2736,6 +2739,7 @@ static gboolean priv_map_reply_to_conn_check_request (NiceAgent *agent, NiceStre
              nice_debug ("Agent %p : Mapped address not found."
                  " conncheck %p SUCCEEDED.", agent, p);
              priv_conn_check_unfreeze_related (agent, stream, p);
@@ -236,7 +258,7 @@ diff --git a/agent/conncheck.c b/agent/conncheck.c
            } else {
              ok_pair = priv_process_response_check_for_reflexive (agent,
                  stream, component, p, sockptr, &sockaddr.addr,
-@@ -3654,6 +3658,8 @@
+@@ -3649,6 +3653,8 @@ gboolean conn_check_handle_inbound_stun (NiceAgent *agent, NiceStream *stream,
          }
        }
  
@@ -246,9 +268,10 @@ diff --git a/agent/conncheck.c b/agent/conncheck.c
            remote_candidate, from, nicesock, rbuf_len, &msg, use_candidate);
  
 diff --git a/tests/Makefile.am b/tests/Makefile.am
+index 7bfe075..d24a2aa 100644
 --- a/tests/Makefile.am
 +++ b/tests/Makefile.am
-@@ -45,7 +45,6 @@
+@@ -45,7 +45,6 @@ check_PROGRAMS = \
  	test-send-recv \
  	test-socket-is-based-on \
  	test-priority \
@@ -258,6 +281,7 @@ diff --git a/tests/Makefile.am b/tests/Makefile.am
  	test-fallback \
 diff --git a/tests/test-mainloop.c b/tests/test-mainloop.c
 deleted file mode 100644
+index 7c52daa..0000000
 --- a/tests/test-mainloop.c
 +++ /dev/null
 @@ -1,108 +0,0 @@
@@ -369,4 +393,6 @@ deleted file mode 100644
 -  return 0;
 -}
 -
+-- 
+2.7.4 (Apple Git-66)
 

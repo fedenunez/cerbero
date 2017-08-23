@@ -1,7 +1,40 @@
+From 0f6c63c5f614e840316143e1ee819f91d05295f6 Mon Sep 17 00:00:00 2001
+From: Marcelo <restuccia@ikatu.com>
+Date: Mon, 21 Aug 2017 14:20:09 -0300
+Subject: [PATCH 3/4] T104 candidate d1715-add_equality_check_function
+
+---
+ agent/candidate.c                           | 11 +++++++++++
+ agent/candidate.h                           | 18 +++++++++++++++++-
+ docs/reference/libnice/libnice-docs.xml     |  4 ++++
+ docs/reference/libnice/libnice-sections.txt |  1 +
+ nice/libnice.sym                            |  1 +
+ 5 files changed, 34 insertions(+), 1 deletion(-)
+
+diff --git a/agent/candidate.c b/agent/candidate.c
+index 27966ef..85f8f65 100644
+--- a/agent/candidate.c
++++ b/agent/candidate.c
+@@ -360,3 +360,14 @@ nice_candidate_copy (const NiceCandidate *candidate)
+ 
+   return copy;
+ }
++
++NICEAPI_EXPORT gboolean
++nice_candidate_equal_target (const NiceCandidate *candidate1,
++    const NiceCandidate *candidate2)
++{
++  g_return_val_if_fail (candidate1 != NULL, FALSE);
++  g_return_val_if_fail (candidate2 != NULL, FALSE);
++
++  return (candidate1->transport == candidate2->transport &&
++      nice_address_equal (&candidate1->addr, &candidate2->addr));
++}
 diff --git a/agent/candidate.h b/agent/candidate.h
+index fadfce3..e556c16 100644
 --- a/agent/candidate.h
 +++ b/agent/candidate.h
-@@ -230,7 +230,23 @@
+@@ -230,7 +230,23 @@ nice_candidate_free (NiceCandidate *candidate);
  NiceCandidate *
  nice_candidate_copy (const NiceCandidate *candidate);
  
@@ -26,25 +59,8 @@ diff --git a/agent/candidate.h b/agent/candidate.h
  
  /**
   * NICE_TYPE_CANDIDATE:
-diff --git a/agent/candidate.c b/agent/candidate.c
---- a/agent/candidate.c
-+++ b/agent/candidate.c
-@@ -360,3 +360,14 @@
- 
-   return copy;
- }
-+
-+NICEAPI_EXPORT gboolean
-+nice_candidate_equal_target (const NiceCandidate *candidate1,
-+    const NiceCandidate *candidate2)
-+{
-+  g_return_val_if_fail (candidate1 != NULL, FALSE);
-+  g_return_val_if_fail (candidate2 != NULL, FALSE);
-+
-+  return (candidate1->transport == candidate2->transport &&
-+      nice_address_equal (&candidate1->addr, &candidate2->addr));
-+}
 diff --git a/docs/reference/libnice/libnice-docs.xml b/docs/reference/libnice/libnice-docs.xml
+index 53487bc..391be1a 100644
 --- a/docs/reference/libnice/libnice-docs.xml
 +++ b/docs/reference/libnice/libnice-docs.xml
 @@ -105,6 +105,10 @@
@@ -59,9 +75,10 @@ diff --git a/docs/reference/libnice/libnice-docs.xml b/docs/reference/libnice/li
    </part>
  </book>
 diff --git a/docs/reference/libnice/libnice-sections.txt b/docs/reference/libnice/libnice-sections.txt
+index d377257..88a6cd2 100644
 --- a/docs/reference/libnice/libnice-sections.txt
 +++ b/docs/reference/libnice/libnice-sections.txt
-@@ -76,6 +76,7 @@
+@@ -76,6 +76,7 @@ NICE_CANDIDATE_MAX_FOUNDATION
  nice_candidate_new
  nice_candidate_free
  nice_candidate_copy
@@ -70,9 +87,10 @@ diff --git a/docs/reference/libnice/libnice-sections.txt b/docs/reference/libnic
  NICE_TYPE_CANDIDATE
  nice_candidate_get_type
 diff --git a/nice/libnice.sym b/nice/libnice.sym
+index b04bb95..1e522ad 100644
 --- a/nice/libnice.sym
 +++ b/nice/libnice.sym
-@@ -58,6 +58,7 @@
+@@ -58,6 +58,7 @@ nice_agent_set_software
  nice_agent_set_stream_name
  nice_agent_set_stream_tos
  nice_candidate_copy
@@ -80,4 +98,6 @@ diff --git a/nice/libnice.sym b/nice/libnice.sym
  nice_candidate_free
  nice_candidate_new
  nice_component_state_to_string
+-- 
+2.7.4 (Apple Git-66)
 
