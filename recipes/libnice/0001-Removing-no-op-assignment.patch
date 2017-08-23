@@ -1,0 +1,24 @@
+From 970568789a5a7f07bd0e58c7d7d5fbf0f5f9639f Mon Sep 17 00:00:00 2001
+From: Marcelo <restuccia@ikatu.com>
+Date: Wed, 23 Aug 2017 17:36:30 -0300
+Subject: [PATCH 1/7] Removing no op assignment
+
+---
+ agent/agent.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/agent/agent.c b/agent/agent.c
+index 555fd16..8373124 100644
+--- a/agent/agent.c
++++ b/agent/agent.c
+@@ -3141,6 +3141,7 @@ static gboolean priv_add_remote_candidate (
+           username, password, priority);
+     }
+     /* case 1: an existing candidate, update the attributes */
++    candidate->type = type;
+     if (base_addr)
+       candidate->base_addr = *base_addr;
+     candidate->priority = priority;
+-- 
+2.7.4 (Apple Git-66)
+

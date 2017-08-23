@@ -12,10 +12,10 @@ class Recipe(recipe.Recipe):
     name = 'nettle'
     version = '3.2'
     stype = SourceType.TARBALL
-    url = 'https://ftp.gnu.org/gnu/{0}/{0}-{1}.tar.gz'.format(name, version)
+    url = 'http://ftp.gnu.org/gnu/{0}/{0}-{1}.tar.gz'.format(name, version)
 
     licenses = [License.LGPLv2_1Plus]
-    configure_options = '--enable-shared --enable-public-key'
+    configure_options = '--enable-shared --enable-public-key --disable-openssl --disable-assembler --disable-arm-neon '
     deps = ['gmp']
     patches = ['0001-ios-fix-build-using-.word-for-assembly-constants.patch']
     allow_parallel_build = False

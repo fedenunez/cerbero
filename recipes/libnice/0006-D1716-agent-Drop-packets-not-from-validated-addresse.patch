@@ -1,8 +1,7 @@
-From 46900bd92d068a7fc93270239103a9477fc9e1f5 Mon Sep 17 00:00:00 2001
+From 8fbcb2f9d079f82de0d0b07ac8bb19a4645cd595 Mon Sep 17 00:00:00 2001
 From: Marcelo <restuccia@ikatu.com>
-Date: Mon, 21 Aug 2017 14:20:32 -0300
-Subject: [PATCH 4/4] T104 candidate d1716 drop packets not from validated
- address
+Date: Wed, 23 Aug 2017 17:54:08 -0300
+Subject: [PATCH 6/7] D1716 agent: Drop packets not from validated addresses
 
 ---
  agent/agent-priv.h    |   2 +
@@ -29,10 +28,10 @@ index 4d8c9b8..ada3630 100644
  {
    GObject parent;                 /* gobject pointer */
 diff --git a/agent/agent.c b/agent/agent.c
-index 555fd16..b2a9f9c 100644
+index 8373124..b0738e8 100644
 --- a/agent/agent.c
 +++ b/agent/agent.c
-@@ -3679,8 +3679,6 @@ agent_recv_message_unlocked (
+@@ -3680,8 +3680,6 @@ agent_recv_message_unlocked (
    if (retval == RECV_OOB)
      goto done;
  
@@ -41,7 +40,7 @@ index 555fd16..b2a9f9c 100644
    /* If the message’s stated length is equal to its actual length, it’s probably
     * a STUN message; otherwise it’s probably data. */
    if (stun_message_validate_buffer_length_fast (
-@@ -3712,6 +3710,7 @@ agent_recv_message_unlocked (
+@@ -3713,6 +3711,7 @@ agent_recv_message_unlocked (
          nice_debug ("%s: Valid STUN packet received.", G_STRFUNC);
          retval = RECV_OOB;
          g_free (big_buf);
@@ -49,7 +48,7 @@ index 555fd16..b2a9f9c 100644
          goto done;
        }
      }
-@@ -3722,6 +3721,23 @@ agent_recv_message_unlocked (
+@@ -3723,6 +3722,23 @@ agent_recv_message_unlocked (
      g_free (big_buf);
    }
  
@@ -227,7 +226,7 @@ index 6712794..a8a1222 100644
  G_END_DECLS
  
 diff --git a/agent/conncheck.c b/agent/conncheck.c
-index 1311c85..10e4e70 100644
+index d658684..ca8b0de 100644
 --- a/agent/conncheck.c
 +++ b/agent/conncheck.c
 @@ -2624,6 +2624,7 @@ static CandidateCheckPair *priv_process_response_check_for_reflexive(NiceAgent *
@@ -258,7 +257,7 @@ index 1311c85..10e4e70 100644
            } else {
              ok_pair = priv_process_response_check_for_reflexive (agent,
                  stream, component, p, sockptr, &sockaddr.addr,
-@@ -3649,6 +3653,8 @@ gboolean conn_check_handle_inbound_stun (NiceAgent *agent, NiceStream *stream,
+@@ -3673,6 +3677,8 @@ gboolean conn_check_handle_inbound_stun (NiceAgent *agent, NiceStream *stream,
          }
        }
  

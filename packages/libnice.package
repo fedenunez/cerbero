@@ -11,5 +11,5 @@ class Package(package.Package):
     #deps = ['base-system-1.0']
     #deps = ['glib-networking']
     deps = ['base-system-1.0',]
-    files = ['libnice:libs', 'libnice:plugins_net','glib:libs:lang:bins:schemas', 'openssl:libs','libffi:libs','gettext:libs:lang']
+    files = ['libnice:libs', 'libnice:plugins_net','glib:libs:lang:bins:schemas', 'openssl:libs','libffi:libs','gettext:libs:lang','gnutls:libs','nettle:libs','libtasn1:libs','gmp:libs']
     files_devel = ['libnice-static:plugins_net_devel']
