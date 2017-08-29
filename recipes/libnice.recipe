@@ -2,7 +2,7 @@
 
 class Recipe(recipe.Recipe):
     name = 'libnice'
-    version = '0.1.14'
+    version = '0.1.13'
     # stype = SourceType.GIT
     # remotes = { 'origin': 'https://github.com/libnice/libnice.git' }
     # commit = '0.1.14'

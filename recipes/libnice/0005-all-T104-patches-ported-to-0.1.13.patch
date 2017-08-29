@@ -1,0 +1,387 @@
+From d1c354191df2dad2a1785f0bc655558f5e56b1fe Mon Sep 17 00:00:00 2001
+From: Marcelo <restuccia@ikatu.com>
+Date: Tue, 29 Aug 2017 11:55:03 -0300
+Subject: [PATCH] all T104 patches ported to 0.1.13
+
+---
+ agent/agent-priv.h                          |  2 +
+ agent/agent.c                               | 20 ++++++-
+ agent/candidate.c                           | 11 ++++
+ agent/candidate.h                           | 18 +++++-
+ agent/component.c                           | 92 ++++++++++++++++++++++++++++-
+ agent/component.h                           | 10 ++++
+ agent/conncheck.c                           |  2 +
+ docs/reference/libnice/libnice-docs.xml     |  4 ++
+ docs/reference/libnice/libnice-sections.txt |  1 +
+ nice/libnice.sym                            |  1 +
+ tests/Makefile.am                           |  6 +-
+ 11 files changed, 160 insertions(+), 7 deletions(-)
+
+diff --git a/agent/agent-priv.h b/agent/agent-priv.h
+index c413bc1..601bc15 100644
+--- a/agent/agent-priv.h
++++ b/agent/agent-priv.h
+@@ -114,6 +114,8 @@ nice_input_message_iter_compare (const NiceInputMessageIter *a,
+  * MTU and estimated typical sizes of ICE STUN packet */
+ #define MAX_STUN_DATAGRAM_PAYLOAD    1300
+ 
++#define NICE_COMPONENT_MAX_VALID_CANDIDATES 50 /* maximum number of validates remote candidates to keep, the number is arbitrary but hopefully large enough */
++
+ struct _NiceAgent
+ {
+   GObject parent;                 /* gobject pointer */
+diff --git a/agent/agent.c b/agent/agent.c
+index 84d4093..c270d47 100644
+--- a/agent/agent.c
++++ b/agent/agent.c
+@@ -3569,8 +3569,6 @@ agent_recv_message_unlocked (
+   if (retval == RECV_OOB)
+     goto done;
+ 
+-  agent->media_after_tick = TRUE;
+-
+   /* If the message’s stated length is equal to its actual length, it’s probably
+    * a STUN message; otherwise it’s probably data. */
+   if (stun_message_validate_buffer_length_fast (
+@@ -3602,6 +3600,7 @@ agent_recv_message_unlocked (
+         nice_debug ("%s: Valid STUN packet received.", G_STRFUNC);
+         retval = RECV_OOB;
+         g_free (big_buf);
++        agent->media_after_tick = TRUE;
+         goto done;
+       }
+     }
+@@ -3612,6 +3611,23 @@ agent_recv_message_unlocked (
+     g_free (big_buf);
+   }
+ 
++  if (!nice_component_verify_remote_candidate (component,
++      message->from, nicesock)) {
++ // if (nice_debug_is_verbose ()) {
++ //   gchar str[INET6_ADDRSTRLEN];
++
++ //   nice_address_to_string (message->from, str);
++ //   nice_debug_verbose ("Agent %p : %d:%d DROPPING packet from unknown source"
++ //       " %s:%d sock-type: %d\n", agent, stream->id, component->id, str,
++ //       nice_address_get_port (message->from), nicesock->type);
++ // }
++
++    retval = RECV_OOB;
++    goto done;
++  }
++
++  agent->media_after_tick = TRUE;
++
+   /* Unhandled STUN; try handling TCP data, then pass to the client. */
+   if (message->length > 0  && agent->reliable) {
+     if (!nice_socket_is_reliable (nicesock) &&
+diff --git a/agent/candidate.c b/agent/candidate.c
+index a472c4a..2001495 100644
+--- a/agent/candidate.c
++++ b/agent/candidate.c
+@@ -318,3 +318,14 @@ nice_candidate_copy (const NiceCandidate *candidate)
+ 
+   return copy;
+ }
++
++NICEAPI_EXPORT gboolean
++nice_candidate_equal_target (const NiceCandidate *candidate1,
++    const NiceCandidate *candidate2)
++{
++  g_return_val_if_fail (candidate1 != NULL, FALSE);
++  g_return_val_if_fail (candidate2 != NULL, FALSE);
++
++  return (candidate1->transport == candidate2->transport &&
++      nice_address_equal (&candidate1->addr, &candidate2->addr));
++}
+diff --git a/agent/candidate.h b/agent/candidate.h
+index 5e0eaf3..537fc3c 100644
+--- a/agent/candidate.h
++++ b/agent/candidate.h
+@@ -230,7 +230,23 @@ nice_candidate_free (NiceCandidate *candidate);
+ NiceCandidate *
+ nice_candidate_copy (const NiceCandidate *candidate);
+ 
+-GType nice_candidate_get_type (void);
++/**
++ * nice_candidate_equal_target:
++ * @candidate1: A candidate
++ * @candidate2: A candidate
++ *
++ * Verifies that the candidates point to the same place, meaning they have
++ * the same transport and the same address. It ignores all other aspects.
++ *
++ * Returns: %TRUE if the candidates point to the same place
++ *
++ * Since: 0.1.15
++ */
++gboolean
++nice_candidate_equal_target (const NiceCandidate *candidate1,
++    const NiceCandidate *candidate2);
++
++  GType nice_candidate_get_type (void);
+ 
+ /**
+  * NICE_TYPE_CANDIDATE:
+diff --git a/agent/component.c b/agent/component.c
+index 1a1f84a..626dbfc 100644
+--- a/agent/component.c
++++ b/agent/component.c
+@@ -127,7 +127,7 @@ component_new (guint id, NiceAgent *agent, Stream *stream)
+   Component *component;
+ 
+   g_atomic_int_inc (&n_components_created);
+-  nice_debug ("Created NiceComponent (%u created, %u destroyed)",
++  nice_debug ("Created Component (%u created, %u destroyed)",
+       n_components_created, n_components_destroyed);
+ 
+   component = g_slice_new0 (Component);
+@@ -309,6 +309,8 @@ component_free (Component *cmp)
+   g_warn_if_fail (cmp->remote_candidates == NULL);
+   g_warn_if_fail (cmp->incoming_checks == NULL);
+ 
++  g_list_free_full (cmp->valid_candidates, (GDestroyNotify) nice_candidate_free);
++
+   g_clear_object (&cmp->tcp);
+   g_clear_object (&cmp->stop_cancellable);
+   g_clear_object (&cmp->iostream);
+@@ -329,7 +331,7 @@ component_free (Component *cmp)
+   g_slice_free (Component, cmp);
+ 
+   g_atomic_int_inc (&n_components_destroyed);
+-  nice_debug ("Destroyed NiceComponent (%u created, %u destroyed)",
++  nice_debug ("Destroyed Component (%u created, %u destroyed)",
+       n_components_created, n_components_destroyed);
+ }
+ 
+@@ -436,6 +438,7 @@ void component_update_selected_pair (Component *component, const CandidatePair *
+   component->selected_pair.remote = pair->remote;
+   component->selected_pair.priority = pair->priority;
+ 
++  nice_component_add_valid_candidate (component, pair->remote);
+ }
+ 
+ /*
+@@ -515,6 +518,11 @@ component_set_selected_remote_candidate (NiceAgent *agent, Component *component,
+   component->selected_pair.remote = remote;
+   component->selected_pair.priority = priority;
+ 
++  /* Get into fallback mode where packets from any source is accepted once
++   * this has been called. This is the expected behavior of pre-ICE SIP.
++   */
++  component->fallback_mode = TRUE;
++
+   return local;
+ }
+ 
+@@ -1225,3 +1233,83 @@ turn_server_unref (TurnServer *turn)
+     g_slice_free (TurnServer, turn);
+   }
+ }
++
++void
++nice_component_add_valid_candidate (Component *component,
++    const NiceCandidate *candidate)
++{
++  guint count = 0;
++  GList *item, *last = NULL;
++
++  for (item = component->valid_candidates; item; item = item->next) {
++    NiceCandidate *cand = item->data;
++
++    last = item;
++    count++;
++    if (nice_candidate_equal_target (cand, candidate))
++      return;
++  }
++
++  /* New candidate */
++
++  if (nice_debug_is_enabled ()) {
++    char str[INET6_ADDRSTRLEN];
++    nice_address_to_string (&candidate->addr, str);
++    nice_debug ("Agent %p :  %d:%d Adding valid source"
++        " candidate: %s:%d trans: %d\n", component->agent,
++        candidate->stream_id, candidate->component_id, str,
++        nice_address_get_port (&candidate->addr), candidate->transport);
++  }
++
++  component->valid_candidates = g_list_prepend (
++      component->valid_candidates, nice_candidate_copy (candidate));
++
++  /* Delete the last one to make sure we don't have a list that is too long,
++   * the candidates are not freed on ICE restart as this would be more complex,
++   * we just keep the list not too long.
++   */
++  if (count > NICE_COMPONENT_MAX_VALID_CANDIDATES) {
++    NiceCandidate *cand = last->data;
++
++    component->valid_candidates = g_list_delete_link (
++        component->valid_candidates, last);
++    nice_candidate_free (cand);
++  }
++}
++
++gboolean
++nice_component_verify_remote_candidate (Component *component,
++    const NiceAddress *address, NiceSocket *nicesock)
++{
++  GList *item;
++
++  if (component->fallback_mode)
++    return TRUE;
++
++  for (item = component->valid_candidates; item; item = item->next) {
++    NiceCandidate *cand = item->data;
++
++    if (((nicesock->type == NICE_SOCKET_TYPE_TCP_BSD &&
++                (cand->transport == NICE_CANDIDATE_TRANSPORT_TCP_ACTIVE ||
++                    cand->transport == NICE_CANDIDATE_TRANSPORT_TCP_PASSIVE ||
++                    cand->transport == NICE_CANDIDATE_TRANSPORT_TCP_SO)) ||
++            cand->transport == NICE_CANDIDATE_TRANSPORT_UDP) &&
++        nice_address_equal (address, &cand->addr)) {
++      /* fast return if it's already the first */
++      if (item == component->valid_candidates)
++        return TRUE;
++
++      /* Put the current candidate at the top so that in the normal use-case,
++       * this function becomes O(1).
++       */
++      component->valid_candidates = g_list_remove_link (
++          component->valid_candidates, item);
++      component->valid_candidates = g_list_concat (item,
++          component->valid_candidates);
++
++      return TRUE;
++    }
++  }
++
++  return FALSE;
++}
+diff --git a/agent/component.h b/agent/component.h
+index 7ded710..0c5c620 100644
+--- a/agent/component.h
++++ b/agent/component.h
+@@ -145,12 +145,14 @@ struct _Component
+   NiceComponentState state;
+   GSList *local_candidates;    /* list of NiceCandidate objs */
+   GSList *remote_candidates;   /* list of NiceCandidate objs */
++  GList *valid_candidates;     /* list of owned remote NiceCandidates that are part of valid pairs */
+   GSList *socket_sources;      /* list of SocketSource objs; must only grow monotonically */
+   guint socket_sources_age;    /* incremented when socket_sources changes */
+   GSList *incoming_checks;     /* list of IncomingCheck objs */
+   GList *turn_servers;             /* List of TurnServer objs */
+   CandidatePair selected_pair; /* independent from checklists, 
+ 				    see ICE 11.1. "Sending Media" (ID-19) */
++  gboolean fallback_mode;      /* in this case, accepts packets from all, ignore candidate validation */
+   NiceCandidate *restart_candidate; /* for storing active remote candidate during a restart */
+   NiceCandidate *turn_candidate; /* for storing active turn candidate if turn servers have been cleared */
+   /* I/O handling. The main context must always be non-NULL, and is used for all
+@@ -281,6 +283,14 @@ turn_server_ref (TurnServer *turn);
+ void
+ turn_server_unref (TurnServer *turn);
+ 
++void
++nice_component_add_valid_candidate (Component *component,
++    const NiceCandidate *candidate);
++
++gboolean
++nice_component_verify_remote_candidate (Component *component,
++    const NiceAddress *address, NiceSocket *nicesock);
++
+ 
+ G_END_DECLS
+ 
+diff --git a/agent/conncheck.c b/agent/conncheck.c
+index d03e57a..4dbf46b 100644
+--- a/agent/conncheck.c
++++ b/agent/conncheck.c
+@@ -2306,6 +2306,7 @@ static CandidateCheckPair *priv_process_response_check_for_peer_reflexive(NiceAg
+     p->state = NICE_CHECK_SUCCEEDED;
+     nice_debug ("Agent %p : conncheck %p SUCCEEDED.", agent, p);
+     priv_conn_check_unfreeze_related (agent, stream, p);
++    nice_component_add_valid_candidate (component, remote_candidate);
+   }
+   else {
+     NiceCandidate *cand =
+@@ -2407,6 +2408,7 @@ static gboolean priv_map_reply_to_conn_check_request (NiceAgent *agent, Stream *
+             nice_debug ("Agent %p : Mapped address not found."
+                 " conncheck %p SUCCEEDED.", agent, p);
+             priv_conn_check_unfreeze_related (agent, stream, p);
++            nice_component_add_valid_candidate (component, p->remote);
+           } else {
+             ok_pair = priv_process_response_check_for_peer_reflexive (agent,
+                 stream, component, p, sockptr, &sockaddr.addr,
+diff --git a/docs/reference/libnice/libnice-docs.xml b/docs/reference/libnice/libnice-docs.xml
+index 3dfac27..7e8cac5 100644
+--- a/docs/reference/libnice/libnice-docs.xml
++++ b/docs/reference/libnice/libnice-docs.xml
+@@ -101,6 +101,10 @@
+       <title>Index of new symbols in 0.1.8</title>
+       <xi:include href="xml/api-index-0.1.8.xml"><xi:fallback/></xi:include>
+     </index>
++    <index role="0.1.15">
++      <title>Index of new symbols in 0.1.15</title>
++      <xi:include href="xml/api-index-0.1.15.xml"><xi:fallback/></xi:include>
++    </index>
+     <xi:include href="xml/annotation-glossary.xml"><xi:fallback /></xi:include>
+   </part>
+ </book>
+diff --git a/docs/reference/libnice/libnice-sections.txt b/docs/reference/libnice/libnice-sections.txt
+index 82f0197..6cfc910 100644
+--- a/docs/reference/libnice/libnice-sections.txt
++++ b/docs/reference/libnice/libnice-sections.txt
+@@ -76,6 +76,7 @@ NICE_CANDIDATE_MAX_FOUNDATION
+ nice_candidate_new
+ nice_candidate_free
+ nice_candidate_copy
++nice_candidate_equal_target
+ <SUBSECTION Standard>
+ NICE_TYPE_CANDIDATE
+ nice_candidate_get_type
+diff --git a/nice/libnice.sym b/nice/libnice.sym
+index efcfdc3..1a0bb0c 100644
+--- a/nice/libnice.sym
++++ b/nice/libnice.sym
+@@ -58,6 +58,7 @@ nice_agent_set_software
+ nice_agent_set_stream_name
+ nice_agent_set_stream_tos
+ nice_candidate_copy
++nice_candidate_equal_target
+ nice_candidate_free
+ nice_candidate_new
+ nice_component_state_to_string
+diff --git a/tests/Makefile.am b/tests/Makefile.am
+index 3644091..0dd4866 100644
+--- a/tests/Makefile.am
++++ b/tests/Makefile.am
+@@ -40,7 +40,6 @@ check_PROGRAMS = \
+ 	test-io-stream-pollable \
+ 	test-send-recv \
+ 	test-priority \
+-	test-mainloop \
+ 	test-fullmode \
+ 	test-restart \
+ 	test-fallback \
+@@ -49,7 +48,8 @@ check_PROGRAMS = \
+ 	test-new-dribble \
+ 	test-tcp \
+ 	test-icetcp \
+-	test-credentials
++	test-credentials \
++ 	test-drop-invalid
+ 
+ dist_check_SCRIPTS = \
+ 	check-test-fullmode-with-stun.sh \
+@@ -119,6 +119,8 @@ test_icetcp_LDADD = $(COMMON_LDADD)
+ 
+ test_credentials_LDADD = $(COMMON_LDADD)
+ 
++test_drop_invalid_LDADD = $(COMMON_LDADD)
++
+ test_gstreamer_CFLAGS = $(AM_CFLAGS) $(GST_CHECK_CFLAGS)
+ test_gstreamer_LDADD = -lnice -L$(top_builddir)/nice/.libs $(GLIB_LIBS) $(GUPNP_LIBS) $(GST_CHECK_LIBS) $(GST_LIBS)
+ 
+-- 
+2.7.4 (Apple Git-66)
+
