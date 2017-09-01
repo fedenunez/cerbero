@@ -10,16 +10,20 @@ class Recipe(custom.GStreamerStatic):
     licenses = [License.LGPLv2_1Plus, License.MPLv1_1]
     extra_configure_options = ' --without-gstreamer-0.10 \
         --enable-compile-warnings=maximum'
-    deps = ['glib', 'gtk-doc-lite', 'gstreamer-1.0','gettext','gnutls']
+    deps = ['glib', 'gtk-doc-lite', 'gstreamer-1.0','gettext']
     autoreconf = True
     patches = [
-   #     "libnice/0001-Removing-no-op-assignment.patch",
-   #     "libnice/0002-nicesrc-spin-the-agent-mainloop-in-a-separate-thread.patch",
-   #     "libnice/0003-TURN-allow-REALM-to-be-empty.patch",
-   #     "libnice/0004-TURN-handle-437-Allocation-Mismatch-responses.patch",
-        "libnice/0005-D1715-candidate-Add-equality-check-function.patch",
-        "libnice/0006-D1716-agent-Drop-packets-not-from-validated-addresse.patch",
-        "libnice/0007-D1717-tests-Add-test-to-verify-that-only-packets-fro.patch"
+        "libnice/0001-agent-Remove-unnecessary-NULL-check.patch",
+        "libnice/0002-Do-not-update-a-remote-candidate-s-type.patch",
+        "libnice/0003-Do-not-compare-scope-for-IPv6-address-when-scope-is-.patch",
+        "libnice/0004-Removing-no-op-assignment.patch",
+        "libnice/0001-nicesrc-spin-the-agent-mainloop-in-a-separate-thread.patch",
+        "libnice/0001-TURN-allow-REALM-to-be-empty.patch",
+        "libnice/0002-TURN-handle-437-Allocation-Mismatch-responses.patch",
+   #     "libnice/socket_dummy_h.patch",
+   #     "libnice/socket_dummy_c.patch",
+        "libnice/socket_correct_close.patch",
+	"libnice/0005-all-T104-patches-ported-to-0.1.13.patch"
     ]
 
 
